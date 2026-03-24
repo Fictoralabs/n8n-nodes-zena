@@ -1,0 +1,56 @@
+{
+  "name": "n8n-nodes-zena",
+  "version": "0.3.0",
+  "description": "n8n community node for Zena — WhatsApp Business SaaS by Fictora Labs. Send messages, manage contacts, leads and conversations. Includes polling trigger for new leads, conversations and contacts.",
+  "keywords": [
+    "n8n-community-node-package",
+    "whatsapp",
+    "zena",
+    "fictoralabs",
+    "whatsapp-business",
+    "messaging",
+    "uae",
+    "gcc",
+    "trigger",
+    "leads",
+    "automation"
+  ],
+  "license": "MIT",
+  "homepage": "https://zena.fictoralabs.ae",
+  "author": {
+    "name": "Fictora Labs",
+    "email": "admin@fictoralabs.ae"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fictoralabs/n8n-nodes-zena"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && cp src/nodes/Zena/zena.svg dist/nodes/Zena/ 2>/dev/null; cp src/nodes/ZenaTrigger/zena.svg dist/nodes/ZenaTrigger/ 2>/dev/null; true",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/ZenaApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Zena/Zena.node.js",
+      "dist/nodes/ZenaTrigger/ZenaTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "n8n-workflow": "^1.120.9",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
