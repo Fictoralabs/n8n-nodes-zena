@@ -1,0 +1,52 @@
+{
+  "name": "n8n-nodes-zena",
+  "version": "0.4.0",
+  "description": "n8n nodes to connect Zena — WhatsApp AI CRM for MENA",
+  "keywords": [
+    "n8n-community-node-package",
+    "zena",
+    "whatsapp",
+    "crm",
+    "ai"
+  ],
+  "license": "MIT",
+  "homepage": "https://zena.chat",
+  "author": {
+    "name": "Fictoralabs",
+    "email": "hello@fictoralabs.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fictoralabs/n8n-nodes-zena.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-icons",
+    "copy-icons": "find src -name '*.svg' -exec sh -c 'mkdir -p dist/$(dirname {}) && cp {} dist/{}' \\;",
+    "dev": "tsc --watch",
+    "format": "prettier src --write",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build && npm run lint"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/ZenaApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Zena/Zena.node.js",
+      "dist/nodes/ZenaTrigger/ZenaTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
