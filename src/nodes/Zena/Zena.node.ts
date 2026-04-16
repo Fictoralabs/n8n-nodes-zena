@@ -28,11 +28,12 @@ export class Zena implements INodeType {
         type: 'options',
         noDataExpression: true,
         options: [
+          { name: 'Broadcast',    value: 'broadcast' },
           { name: 'Contact',      value: 'contact' },
           { name: 'Conversation', value: 'conversation' },
           { name: 'Lead',         value: 'lead' },
           { name: 'Message',      value: 'message' },
-          { name: 'Broadcast',    value: 'broadcast' },
+          { name: 'Owner',        value: 'owner' },
         ],
         default: 'contact',
       },
@@ -138,8 +139,9 @@ export class Zena implements INodeType {
         noDataExpression: true,
         displayOptions: { show: { resource: ['conversation'] } },
         options: [
-          { name: 'List',   value: 'list',   description: 'Return a page of conversations',       action: 'List conversations' },
-          { name: 'Update', value: 'update', description: 'Update conversation status or agent',   action: 'Update a conversation' },
+          { name: 'List',         value: 'list',        description: 'Return a page of conversations',       action: 'List conversations' },
+          { name: 'Get Messages', value: 'getMessages', description: 'Return all messages for a conversation', action: 'Get messages for a conversation' },
+          { name: 'Update',       value: 'update',      description: 'Update conversation status or agent',   action: 'Update a conversation' },
         ],
         default: 'list',
       },
@@ -184,14 +186,14 @@ export class Zena implements INodeType {
         displayOptions: { show: { resource: ['conversation'], operation: ['list'] } },
       },
 
-      // conversation → update
+      // conversation → getMessages / update
       {
         displayName: 'Conversation ID',
         name: 'conversationId',
         type: 'string',
         required: true,
         default: '',
-        displayOptions: { show: { resource: ['conversation'], operation: ['update'] } },
+        displayOptions: { show: { resource: ['conversation'], operation: ['getMessages', 'update'] } },
       },
       {
         displayName: 'Update Fields',
@@ -400,6 +402,14 @@ export class Zena implements INodeType {
         displayOptions: { show: { resource: ['broadcast'], operation: ['list'] } },
       },
       {
+        displayName: 'Offset',
+        name: 'offset',
+        type: 'number',
+        typeOptions: { minValue: 0 },
+        default: 0,
+        displayOptions: { show: { resource: ['broadcast'], operation: ['list'] } },
+      },
+      {
         displayName: 'Status Filter',
         name: 'statusFilter',
         type: 'options',
@@ -412,6 +422,82 @@ export class Zena implements INodeType {
         ],
         default: '',
         displayOptions: { show: { resource: ['broadcast'], operation: ['list'] } },
+      },
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // OWNER operations
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: { show: { resource: ['owner'] } },
+        options: [
+          {
+            name: 'Submit Dump',
+            value: 'dump',
+            description: 'Submit a raw idea/dump text — fires the owner.quickdump webhook to all active Zena webhooks',
+            action: 'Submit a quick dump',
+          },
+          {
+            name: 'Submit Idea Session',
+            value: 'session',
+            description: 'Submit a completed idea session brief — fires the owner.session_done webhook',
+            action: 'Submit an idea session brief',
+          },
+        ],
+        default: 'dump',
+      },
+
+      // owner → dump
+      {
+        displayName: 'Raw Dump Text',
+        name: 'rawDump',
+        type: 'string',
+        typeOptions: { rows: 4 },
+        required: true,
+        default: '',
+        description: 'The idea or content to capture. Can be raw, unformatted text.',
+        displayOptions: { show: { resource: ['owner'], operation: ['dump'] } },
+      },
+
+      // owner → session
+      {
+        displayName: 'Brief (JSON)',
+        name: 'brief',
+        type: 'json',
+        required: true,
+        default: '{\n  "title": "",\n  "stage": "",\n  "framework": "",\n  "priority_score": 0,\n  "hook": ""\n}',
+        description: 'Structured idea brief object. Passed as-is in the owner.session_done webhook payload.',
+        displayOptions: { show: { resource: ['owner'], operation: ['session'] } },
+      },
+
+      // owner → dump + session (optional fields)
+      {
+        displayName: 'Additional Fields',
+        name: 'additionalFields',
+        type: 'collection',
+        placeholder: 'Add Field',
+        default: {},
+        displayOptions: { show: { resource: ['owner'], operation: ['dump', 'session'] } },
+        options: [
+          {
+            displayName: 'Contact ID',
+            name: 'contact_id',
+            type: 'string',
+            default: '',
+            description: 'UUID of the Zena contact to associate with this event (optional)',
+          },
+          {
+            displayName: 'WhatsApp ID (wa_id)',
+            name: 'wa_id',
+            type: 'string',
+            default: '',
+            placeholder: '971501234567',
+            description: 'Phone number in E.164 format without + to associate with this event (optional)',
+          },
+        ],
       },
     ],
   };
@@ -493,6 +579,11 @@ export class Zena implements INodeType {
             const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/conversations?${qs}`, headers, json: true });
             responseData = unwrapList(res);
 
+          } else if (operation === 'getMessages') {
+            const conversationId = this.getNodeParameter('conversationId', i) as string;
+            const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/conversations/${conversationId}/messages`, headers, json: true });
+            responseData = unwrapList(res);
+
           } else if (operation === 'update') {
             const conversationId = this.getNodeParameter('conversationId', i) as string;
             const fields = this.getNodeParameter('updateFields', i) as Record<string, unknown>;
@@ -529,7 +620,8 @@ export class Zena implements INodeType {
 
           if (operation === 'sendText') {
             const text = this.getNodeParameter('text', i) as string;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'text', text } }, json: true });
+            // Send as plain string — the Zena API converts it to { text: { body: ... } } for Meta
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: text }, json: true });
 
           } else if (operation === 'sendImage') {
             const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
@@ -575,11 +667,36 @@ export class Zena implements INodeType {
         } else if (resource === 'broadcast') {
           if (operation === 'list') {
             const limit = this.getNodeParameter('limit', i) as number;
+            const offset = this.getNodeParameter('offset', i) as number;
             const statusFilter = this.getNodeParameter('statusFilter', i) as string;
-            const qs = new URLSearchParams({ limit: String(limit) });
+            const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
             if (statusFilter) qs.set('status', statusFilter);
             const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/broadcasts?${qs}`, headers, json: true });
             responseData = unwrapList(res);
+          }
+
+        // ─── OWNER ──────────────────────────────────────────────────────────
+        } else if (resource === 'owner') {
+          const additionalFields = this.getNodeParameter('additionalFields', i) as Record<string, string>;
+          const extra: Record<string, unknown> = {};
+          if (additionalFields.contact_id) extra.contact_id = additionalFields.contact_id;
+          if (additionalFields.wa_id)      extra.wa_id      = additionalFields.wa_id;
+
+          if (operation === 'dump') {
+            const rawDump = this.getNodeParameter('rawDump', i) as string;
+            responseData = await this.helpers.request({
+              method: 'POST', url: `${baseUrl}/owner/dump`, headers,
+              body: { raw_dump: rawDump, ...extra }, json: true,
+            });
+
+          } else if (operation === 'session') {
+            const briefRaw = this.getNodeParameter('brief', i) as string;
+            let brief: unknown = {};
+            try { brief = JSON.parse(briefRaw); } catch { /* use empty object */ }
+            responseData = await this.helpers.request({
+              method: 'POST', url: `${baseUrl}/owner/session`, headers,
+              body: { brief, ...extra }, json: true,
+            });
           }
         }
 
