@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zena",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "n8n nodes to connect Zena — WhatsApp AI CRM for MENA",
   "keywords": [
     "n8n-community-node-package",
