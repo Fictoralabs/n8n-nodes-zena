@@ -18,7 +18,7 @@ export class ZenaApi implements ICredentialType {
       displayName: 'Base URL',
       name: 'baseUrl',
       type: 'string',
-      default: 'https://app.zena.chat/api/v1',
+      default: 'https://zena.fictoralabs.ae/api/v1',
       required: true,
       description: 'Leave as default unless you are self-hosting Zena',
     },

@@ -77,7 +77,7 @@ export class ZenaTrigger implements INodeType {
     const credentials = await this.getCredentials('zenaApi');
     const baseUrl = (credentials.baseUrl as string).replace(/\/$/, '');
     const apiKey = credentials.apiKey as string;
-    const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' };
+    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
 
     const event = this.getNodeParameter('event') as string;
     const workflowStaticData = this.getWorkflowStaticData('node');
@@ -92,69 +92,70 @@ export class ZenaTrigger implements INodeType {
 
     let items: IDataObject[] = [];
 
+    // All Zena list endpoints return { data: [], limit, offset, total }
+    const unwrapList = (res: unknown): IDataObject[] => {
+      const r = res as Record<string, unknown>;
+      return Array.isArray(r?.data) ? (r.data as IDataObject[]) : [];
+    };
+
     try {
       if (event === 'new_message') {
         // Poll conversations updated since last check and surface messages
         const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const convs = await this.helpers.request({
+        const res = await this.helpers.request({
           method: 'GET',
           url: `${baseUrl}/conversations?${qs}`,
           headers,
           json: true,
-        }) as IDataObject[];
-        items = Array.isArray(convs) ? convs.map(c => ({ ...c, _event: 'new_message' })) : [];
+        });
+        items = unwrapList(res).map(c => ({ ...c, _event: 'new_message' }));
 
       } else if (event === 'new_lead' || event === 'lead_status_changed') {
         const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const leads = await this.helpers.request({
+        const res = await this.helpers.request({
           method: 'GET',
           url: `${baseUrl}/leads?${qs}`,
           headers,
           json: true,
-        }) as IDataObject[];
-        if (Array.isArray(leads)) {
-          if (event === 'new_lead') {
-            // Only leads created since last poll
-            items = leads
-              .filter(l => l.created_at && new Date(l.created_at as string) >= new Date(since))
-              .map(l => ({ ...l, _event: 'new_lead' }));
-          } else {
-            // Leads whose updated_at > created_at (i.e. status was changed after creation)
-            items = leads
-              .filter(l => l.updated_at && l.created_at &&
-                new Date(l.updated_at as string) > new Date(l.created_at as string))
-              .map(l => ({ ...l, _event: 'lead_status_changed' }));
-          }
+        });
+        const leads = unwrapList(res);
+        if (event === 'new_lead') {
+          // Only leads created since last poll
+          items = leads
+            .filter(l => l.created_at && new Date(l.created_at as string) >= new Date(since))
+            .map(l => ({ ...l, _event: 'new_lead' }));
+        } else {
+          // Leads whose updated_at > created_at (i.e. status was changed after creation)
+          items = leads
+            .filter(l => l.updated_at && l.created_at &&
+              new Date(l.updated_at as string) > new Date(l.created_at as string))
+            .map(l => ({ ...l, _event: 'lead_status_changed' }));
         }
 
       } else if (event === 'new_contact') {
         const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const contacts = await this.helpers.request({
+        const res = await this.helpers.request({
           method: 'GET',
           url: `${baseUrl}/contacts?${qs}`,
           headers,
           json: true,
-        }) as IDataObject[];
-        if (Array.isArray(contacts)) {
-          items = contacts
-            .filter(c => c.created_at && new Date(c.created_at as string) >= new Date(since))
-            .map(c => ({ ...c, _event: 'new_contact' }));
-        }
+        });
+        items = unwrapList(res)
+          .filter(c => c.created_at && new Date(c.created_at as string) >= new Date(since))
+          .map(c => ({ ...c, _event: 'new_contact' }));
 
       } else if (event === 'conversation_status_changed') {
         const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const convs = await this.helpers.request({
+        const res = await this.helpers.request({
           method: 'GET',
           url: `${baseUrl}/conversations?${qs}`,
           headers,
           json: true,
-        }) as IDataObject[];
-        if (Array.isArray(convs)) {
-          items = convs
-            .filter(c => c.updated_at && c.created_at &&
-              new Date(c.updated_at as string) > new Date(c.created_at as string))
-            .map(c => ({ ...c, _event: 'conversation_status_changed' }));
-        }
+        });
+        items = unwrapList(res)
+          .filter(c => c.updated_at && c.created_at &&
+            new Date(c.updated_at as string) > new Date(c.created_at as string))
+          .map(c => ({ ...c, _event: 'conversation_status_changed' }));
       }
 
     } catch (error) {

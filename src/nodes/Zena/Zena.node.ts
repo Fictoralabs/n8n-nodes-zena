@@ -423,7 +423,7 @@ export class Zena implements INodeType {
     const baseUrl = (credentials.baseUrl as string).replace(/\/$/, '');
     const apiKey = credentials.apiKey as string;
 
-    const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' };
+    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
 
     for (let i = 0; i < items.length; i++) {
       try {
@@ -431,6 +431,17 @@ export class Zena implements INodeType {
         const operation = this.getNodeParameter('operation', i) as string;
 
         let responseData: unknown;
+
+        // Helper: unwrap paginated list responses { data: [], limit, offset, total }
+        // and single-item responses { data: {} } from the Zena API
+        const unwrapList = (res: unknown): IDataObject[] => {
+          const r = res as Record<string, unknown>;
+          return Array.isArray(r?.data) ? (r.data as IDataObject[]) : (Array.isArray(res) ? res as IDataObject[] : [res as IDataObject]);
+        };
+        const unwrapOne = (res: unknown): IDataObject => {
+          const r = res as Record<string, unknown>;
+          return (r?.data && !Array.isArray(r.data) ? r.data : res) as IDataObject;
+        };
 
         // ─── CONTACT ────────────────────────────────────────────────────────
         if (resource === 'contact') {
@@ -443,11 +454,12 @@ export class Zena implements INodeType {
             if (search) qs.set('search', search);
             if (updatedSince) qs.set('updated_since', updatedSince);
             const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/contacts?${qs}`, headers, json: true });
-            responseData = res;
+            responseData = unwrapList(res);
 
           } else if (operation === 'get') {
             const contactId = this.getNodeParameter('contactId', i) as string;
-            responseData = await this.helpers.request({ method: 'GET', url: `${baseUrl}/contacts/${contactId}`, headers, json: true });
+            const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/contacts/${contactId}`, headers, json: true });
+            responseData = unwrapOne(res);
 
           } else if (operation === 'update') {
             const contactId = this.getNodeParameter('contactId', i) as string;
@@ -458,12 +470,14 @@ export class Zena implements INodeType {
             if (fields.company) body.company = fields.company;
             if (fields.notes)   body.notes   = fields.notes;
             if (fields.tags)    body.tags    = fields.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-            responseData = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/contacts/${contactId}`, headers, body, json: true });
+            const res = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/contacts/${contactId}`, headers, body, json: true });
+            responseData = unwrapOne(res);
 
           } else if (operation === 'addNote') {
             const contactId = this.getNodeParameter('contactId', i) as string;
             const note = this.getNodeParameter('note', i) as string;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/contacts/${contactId}/notes`, headers, body: { note }, json: true });
+            const res = await this.helpers.request({ method: 'POST', url: `${baseUrl}/contacts/${contactId}/notes`, headers, body: { note }, json: true });
+            responseData = unwrapOne(res);
           }
 
         // ─── CONVERSATION ───────────────────────────────────────────────────
@@ -476,7 +490,8 @@ export class Zena implements INodeType {
             const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
             if (statusFilter) qs.set('status', statusFilter);
             if (updatedSince) qs.set('updated_since', updatedSince);
-            responseData = await this.helpers.request({ method: 'GET', url: `${baseUrl}/conversations?${qs}`, headers, json: true });
+            const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/conversations?${qs}`, headers, json: true });
+            responseData = unwrapList(res);
 
           } else if (operation === 'update') {
             const conversationId = this.getNodeParameter('conversationId', i) as string;
@@ -486,7 +501,8 @@ export class Zena implements INodeType {
             if (fields.ai_active !== undefined)          body.ai_active          = fields.ai_active;
             if (fields.assigned_agent_id !== undefined && fields.assigned_agent_id !== '')
               body.assigned_agent_id = fields.assigned_agent_id;
-            responseData = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/conversations/${conversationId}`, headers, body, json: true });
+            const res = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/conversations/${conversationId}`, headers, body, json: true });
+            responseData = unwrapOne(res);
           }
 
         // ─── LEAD ───────────────────────────────────────────────────────────
@@ -497,39 +513,41 @@ export class Zena implements INodeType {
             const updatedSince = this.getNodeParameter('updatedSince', i) as string;
             const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
             if (updatedSince) qs.set('updated_since', updatedSince);
-            responseData = await this.helpers.request({ method: 'GET', url: `${baseUrl}/leads?${qs}`, headers, json: true });
+            const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/leads?${qs}`, headers, json: true });
+            responseData = unwrapList(res);
 
           } else if (operation === 'update') {
             const leadId = this.getNodeParameter('leadId', i) as string;
             const status = this.getNodeParameter('status', i) as string;
-            responseData = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/leads/${leadId}`, headers, body: { status }, json: true });
+            const res = await this.helpers.request({ method: 'PATCH', url: `${baseUrl}/leads/${leadId}`, headers, body: { status }, json: true });
+            responseData = unwrapOne(res);
           }
 
         // ─── MESSAGE ────────────────────────────────────────────────────────
         } else if (resource === 'message') {
-          const to = this.getNodeParameter('to', i) as string;
+          const wa_id = this.getNodeParameter('to', i) as string;
 
           if (operation === 'sendText') {
             const text = this.getNodeParameter('text', i) as string;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { to, type: 'text', text }, json: true });
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'text', text } }, json: true });
 
           } else if (operation === 'sendImage') {
             const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
             const caption = this.getNodeParameter('caption', i) as string;
-            const body: Record<string, unknown> = { to, type: 'image', image: { link: mediaUrl } };
-            if (caption) (body.image as Record<string, string>).caption = caption;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body, json: true });
+            const img: Record<string, string> = { link: mediaUrl };
+            if (caption) img.caption = caption;
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'image', image: img } }, json: true });
 
           } else if (operation === 'sendVideo') {
             const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
             const caption = this.getNodeParameter('caption', i) as string;
-            const body: Record<string, unknown> = { to, type: 'video', video: { link: mediaUrl } };
-            if (caption) (body.video as Record<string, string>).caption = caption;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body, json: true });
+            const vid: Record<string, string> = { link: mediaUrl };
+            if (caption) vid.caption = caption;
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'video', video: vid } }, json: true });
 
           } else if (operation === 'sendAudio') {
             const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { to, type: 'audio', audio: { link: mediaUrl } }, json: true });
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'audio', audio: { link: mediaUrl } } }, json: true });
 
           } else if (operation === 'sendDocument') {
             const mediaUrl = this.getNodeParameter('mediaUrl', i) as string;
@@ -538,7 +556,7 @@ export class Zena implements INodeType {
             const doc: Record<string, string> = { link: mediaUrl };
             if (caption)  doc.caption  = caption;
             if (filename) doc.filename = filename;
-            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { to, type: 'document', document: doc }, json: true });
+            responseData = await this.helpers.request({ method: 'POST', url: `${baseUrl}/messages`, headers, body: { wa_id, message: { type: 'document', document: doc } }, json: true });
 
           } else if (operation === 'sendTemplate') {
             const templateName = this.getNodeParameter('templateName', i) as string;
@@ -548,7 +566,7 @@ export class Zena implements INodeType {
             try { components = JSON.parse(componentsRaw); } catch { /* use empty */ }
             responseData = await this.helpers.request({
               method: 'POST', url: `${baseUrl}/messages`, headers,
-              body: { to, type: 'template', template: { name: templateName, language: { code: languageCode }, components } },
+              body: { wa_id, message: { type: 'template', template: { name: templateName, language: { code: languageCode }, components } } },
               json: true,
             });
           }
@@ -560,7 +578,8 @@ export class Zena implements INodeType {
             const statusFilter = this.getNodeParameter('statusFilter', i) as string;
             const qs = new URLSearchParams({ limit: String(limit) });
             if (statusFilter) qs.set('status', statusFilter);
-            responseData = await this.helpers.request({ method: 'GET', url: `${baseUrl}/broadcasts?${qs}`, headers, json: true });
+            const res = await this.helpers.request({ method: 'GET', url: `${baseUrl}/broadcasts?${qs}`, headers, json: true });
+            responseData = unwrapList(res);
           }
         }
 
