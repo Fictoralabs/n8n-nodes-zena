@@ -1,16 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <!-- Background -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" shape-rendering="geometricPrecision">
+  <!-- Background — Zena navy with rounded corners -->
   <rect width="60" height="60" rx="12" fill="#131B2E"/>
-  <!-- "ze" in lime green, "na" in teal — matching Zena brand -->
-  <text
-    x="50%" y="52%"
-    dominant-baseline="middle"
-    text-anchor="middle"
-    font-family="'Trebuchet MS','Arial Rounded MT Bold',Arial,sans-serif"
-    font-size="21"
-    font-weight="900"
-    letter-spacing="-0.5"
-  >
-    <tspan fill="#B4E130">ze</tspan><tspan fill="#3DAB80">na</tspan>
-  </text>
+  <!-- Upper half of the Z: top bar + top half of the diagonal. Lime green. -->
+  <path d="M10 14 L50 14 L50 22 L34 30 L26 30 L10 22 Z" fill="#B4E130"/>
+  <!-- Lower half of the Z: bottom bar + bottom half of the diagonal. Teal. -->
+  <path d="M26 30 L34 30 L18 38 L50 38 L50 46 L10 46 L10 38 Z" fill="#3DAB80"/>
+  <!-- Trigger marker — small circle in top-right to differentiate from the action node. -->
+  <circle cx="48" cy="12" r="4" fill="#FFFFFF"/>
+  <circle cx="48" cy="12" r="2.5" fill="#B4E130"/>
 </svg>

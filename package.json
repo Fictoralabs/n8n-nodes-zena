@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zena",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "n8n nodes to connect Zena — WhatsApp AI CRM for MENA",
   "keywords": [
     "n8n-community-node-package",
@@ -19,10 +19,10 @@
     "type": "git",
     "url": "https://github.com/Fictoralabs/n8n-nodes-zena.git"
   },
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc && npm run copy-icons",
-    "copy-icons": "find src -name '*.svg' -exec sh -c 'mkdir -p dist/$(dirname {}) && cp {} dist/{}' \\;",
+    "copy-icons": "for f in src/nodes/*/*.svg; do d=\"dist/${f#src/}\"; mkdir -p \"$(dirname \"$d\")\" && cp \"$f\" \"$d\"; done",
     "dev": "tsc --watch",
     "format": "prettier src --write",
     "lint": "eslint src --ext .ts",
