@@ -5,165 +5,251 @@ import {
   INodeType,
   INodeTypeDescription,
   NodeOperationError,
-} from 'n8n-workflow';
+} from "n8n-workflow";
+
+import {
+  credentialsFrom,
+  fetchAllPages,
+  unwrapList,
+  zenaRequest,
+} from "../../shared/ZenaApiClient";
+
+const MAX_SEEN_IDS = 2000;
 
 export class ZenaTrigger implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'Zena Trigger',
-    name: 'zenaTrigger',
-    icon: 'file:zena.svg',
-    group: ['trigger'],
+    displayName: "Zena Trigger",
+    name: "zenaTrigger",
+    icon: "file:zena.svg",
+    group: ["trigger"],
     version: 1,
     subtitle: '={{$parameter["event"]}}',
-    description: 'Trigger workflows from Zena events via polling',
-    defaults: { name: 'Zena Trigger' },
+    description: "Trigger workflows from Zena events via API polling",
+    defaults: { name: "Zena Trigger" },
     inputs: [],
-    outputs: ['main'],
-    credentials: [{ name: 'zenaApi', required: true }],
+    outputs: ["main"],
+    credentials: [{ name: "zenaApi", required: true }],
     polling: true,
     properties: [
       {
-        displayName: 'Event',
-        name: 'event',
-        type: 'options',
+        displayName: "Event",
+        name: "event",
+        type: "options",
         options: [
           {
-            name: 'New Message',
-            value: 'new_message',
-            description: 'Fires when a new inbound WhatsApp message arrives',
+            name: "New Inbound Message",
+            value: "new_message",
+            description:
+              "Polls updated conversations, fetches their messages, and emits new inbound messages",
           },
           {
-            name: 'New Lead',
-            value: 'new_lead',
-            description: 'Fires when a new lead is captured',
+            name: "New Lead",
+            value: "new_lead",
+            description: "Fires when a new lead is captured",
           },
           {
-            name: 'Lead Status Changed',
-            value: 'lead_status_changed',
-            description: 'Fires when a lead status is updated',
+            name: "Lead Status Changed",
+            value: "lead_status_changed",
+            description: "Fires when a lead row is updated after creation",
           },
           {
-            name: 'New Contact',
-            value: 'new_contact',
-            description: 'Fires when a new contact is created',
+            name: "New Contact",
+            value: "new_contact",
+            description: "Fires when a new contact is created",
           },
           {
-            name: 'Conversation Status Changed',
-            value: 'conversation_status_changed',
-            description: 'Fires when a conversation status changes (open / pending / resolved)',
+            name: "Conversation Updated",
+            value: "conversation_status_changed",
+            description:
+              "Fires when a conversation row is updated after creation",
           },
         ],
-        default: 'new_message',
+        default: "new_message",
         noDataExpression: true,
       },
       {
-        displayName: 'Poll Interval',
-        name: 'pollInterval',
-        type: 'options',
+        displayName: "First Poll Lookback",
+        name: "pollInterval",
+        type: "options",
         options: [
-          { name: 'Every Minute',      value: 1 },
-          { name: 'Every 5 Minutes',   value: 5 },
-          { name: 'Every 15 Minutes',  value: 15 },
-          { name: 'Every 30 Minutes',  value: 30 },
-          { name: 'Every Hour',        value: 60 },
+          { name: "1 Minute", value: 1 },
+          { name: "5 Minutes", value: 5 },
+          { name: "15 Minutes", value: 15 },
+          { name: "30 Minutes", value: 30 },
+          { name: "1 Hour", value: 60 },
         ],
         default: 5,
-        description: 'How often to check for new events',
+        description:
+          "How far back the first poll should look. n8n controls the recurring polling schedule.",
+      },
+      {
+        displayName: "Maximum Pages",
+        name: "maxPages",
+        type: "number",
+        typeOptions: { minValue: 1, maxValue: 50 },
+        default: 10,
+        description:
+          "Maximum API pages to scan on each poll. Each page contains 100 records.",
       },
     ],
   };
 
   async poll(this: IPollFunctions): Promise<INodeExecutionData[][] | null> {
-    const credentials = await this.getCredentials('zenaApi');
-    const baseUrl = (credentials.baseUrl as string).replace(/\/$/, '');
-    const apiKey = credentials.apiKey as string;
-    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    const credentials = credentialsFrom(
+      (await this.getCredentials("zenaApi")) as IDataObject,
+    );
+    const event = this.getNodeParameter("event") as string;
+    const workflowStaticData = this.getWorkflowStaticData("node");
 
-    const event = this.getNodeParameter('event') as string;
-    const workflowStaticData = this.getWorkflowStaticData('node');
-
-    // Use last poll time as cursor; seed with current time minus 5 min on first run
     const now = new Date();
-    const lastPollTime = workflowStaticData.lastPollTime as string | undefined;
-    const since = lastPollTime || new Date(now.getTime() - 5 * 60 * 1000).toISOString();
+    const lookbackMinutes = Number(this.getNodeParameter("pollInterval") || 5);
+    const cursorKey = `lastPollTime:${event}`;
+    const seenKey = `seen:${event}`;
+    const lastPollTime = workflowStaticData[cursorKey] as string | undefined;
+    const since =
+      lastPollTime ||
+      new Date(now.getTime() - lookbackMinutes * 60 * 1000).toISOString();
+    const maxPages = Number(this.getNodeParameter("maxPages") || 10);
 
-    // Update cursor immediately so we don't re-process on errors
-    workflowStaticData.lastPollTime = now.toISOString();
+    const seen = Array.isArray(workflowStaticData[seenKey])
+      ? (workflowStaticData[seenKey] as string[])
+      : [];
+    const seenSet = new Set(seen);
+    const nextSeen = [...seen];
+    const items: IDataObject[] = [];
 
-    let items: IDataObject[] = [];
-
-    // All Zena list endpoints return { data: [], limit, offset, total }
-    const unwrapList = (res: unknown): IDataObject[] => {
-      const r = res as Record<string, unknown>;
-      return Array.isArray(r?.data) ? (r.data as IDataObject[]) : [];
+    const addItem = (key: string, item: IDataObject) => {
+      if (seenSet.has(key)) return;
+      seenSet.add(key);
+      nextSeen.push(key);
+      items.push(item);
     };
 
     try {
-      if (event === 'new_message') {
-        // Poll conversations updated since last check and surface messages
-        const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const res = await this.helpers.request({
-          method: 'GET',
-          url: `${baseUrl}/conversations?${qs}`,
-          headers,
-          json: true,
-        });
-        items = unwrapList(res).map(c => ({ ...c, _event: 'new_message' }));
+      if (event === "new_message") {
+        const conversations = await fetchAllPages(
+          this,
+          credentials,
+          "/conversations",
+          { updated_since: since },
+          100,
+          maxPages,
+        );
 
-      } else if (event === 'new_lead' || event === 'lead_status_changed') {
-        const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const res = await this.helpers.request({
-          method: 'GET',
-          url: `${baseUrl}/leads?${qs}`,
-          headers,
-          json: true,
-        });
-        const leads = unwrapList(res);
-        if (event === 'new_lead') {
-          // Only leads created since last poll
-          items = leads
-            .filter(l => l.created_at && new Date(l.created_at as string) >= new Date(since))
-            .map(l => ({ ...l, _event: 'new_lead' }));
-        } else {
-          // Leads whose updated_at > created_at (i.e. status was changed after creation)
-          items = leads
-            .filter(l => l.updated_at && l.created_at &&
-              new Date(l.updated_at as string) > new Date(l.created_at as string))
-            .map(l => ({ ...l, _event: 'lead_status_changed' }));
+        for (const conversation of conversations) {
+          const conversationId = String(conversation.id || "");
+          if (!conversationId) continue;
+          const response = await zenaRequest(
+            this,
+            credentials,
+            "GET",
+            `/conversations/${encodeURIComponent(conversationId)}/messages`,
+          );
+          const messages = unwrapList(response);
+          for (const message of messages) {
+            if (message.direction !== "inbound") continue;
+            if (!isAtOrAfter(message.created_at, since)) continue;
+            const messageId = String(
+              message.id ||
+                `${conversationId}:${message.created_at}:${message.body || ""}`,
+            );
+            addItem(`message:${messageId}`, {
+              ...message,
+              conversation_id: conversationId,
+              conversation,
+              _event: "new_message",
+            });
+          }
         }
-
-      } else if (event === 'new_contact') {
-        const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const res = await this.helpers.request({
-          method: 'GET',
-          url: `${baseUrl}/contacts?${qs}`,
-          headers,
-          json: true,
-        });
-        items = unwrapList(res)
-          .filter(c => c.created_at && new Date(c.created_at as string) >= new Date(since))
-          .map(c => ({ ...c, _event: 'new_contact' }));
-
-      } else if (event === 'conversation_status_changed') {
-        const qs = new URLSearchParams({ limit: '100', updated_since: since });
-        const res = await this.helpers.request({
-          method: 'GET',
-          url: `${baseUrl}/conversations?${qs}`,
-          headers,
-          json: true,
-        });
-        items = unwrapList(res)
-          .filter(c => c.updated_at && c.created_at &&
-            new Date(c.updated_at as string) > new Date(c.created_at as string))
-          .map(c => ({ ...c, _event: 'conversation_status_changed' }));
+      } else if (event === "new_lead" || event === "lead_status_changed") {
+        const leads = await fetchAllPages(
+          this,
+          credentials,
+          "/leads",
+          { updated_since: since },
+          100,
+          maxPages,
+        );
+        for (const lead of leads) {
+          if (event === "new_lead") {
+            if (!isAtOrAfter(lead.created_at, since)) continue;
+            addItem(`lead:${lead.id}`, { ...lead, _event: "new_lead" });
+          } else {
+            if (!isAfter(lead.updated_at, lead.created_at)) continue;
+            addItem(
+              `lead-status:${lead.id}:${lead.status}:${lead.updated_at}`,
+              {
+                ...lead,
+                _event: "lead_status_changed",
+              },
+            );
+          }
+        }
+      } else if (event === "new_contact") {
+        const contacts = await fetchAllPages(
+          this,
+          credentials,
+          "/contacts",
+          { updated_since: since },
+          100,
+          maxPages,
+        );
+        for (const contact of contacts) {
+          if (!isAtOrAfter(contact.created_at, since)) continue;
+          addItem(`contact:${contact.id}`, {
+            ...contact,
+            _event: "new_contact",
+          });
+        }
+      } else if (event === "conversation_status_changed") {
+        const conversations = await fetchAllPages(
+          this,
+          credentials,
+          "/conversations",
+          { updated_since: since },
+          100,
+          maxPages,
+        );
+        for (const conversation of conversations) {
+          if (!isAfter(conversation.updated_at, conversation.created_at))
+            continue;
+          addItem(
+            `conversation:${conversation.id}:${conversation.status}:${conversation.updated_at}`,
+            {
+              ...conversation,
+              _event: "conversation_status_changed",
+            },
+          );
+        }
       }
 
+      workflowStaticData[cursorKey] = now.toISOString();
+      workflowStaticData[seenKey] = nextSeen.slice(-MAX_SEEN_IDS);
     } catch (error) {
       throw new NodeOperationError(this.getNode(), error as Error);
     }
 
     if (!items.length) return null;
-
-    return [items.map(item => ({ json: item }))];
+    return [items.map((item) => ({ json: item }))];
   }
+}
+
+function isAtOrAfter(value: unknown, since: string): boolean {
+  const timestamp = toDate(value);
+  const cursor = toDate(since);
+  if (!timestamp || !cursor) return false;
+  return timestamp.getTime() >= cursor.getTime();
+}
+
+function isAfter(value: unknown, compareTo: unknown): boolean {
+  const timestamp = toDate(value);
+  const base = toDate(compareTo);
+  if (!timestamp || !base) return false;
+  return timestamp.getTime() > base.getTime();
+}
+
+function toDate(value: unknown): Date | null {
+  if (typeof value !== "string" && !(value instanceof Date)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
