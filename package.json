@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-zena",
-  "version": "0.7.2",
-  "description": "n8n nodes to connect Zena — WhatsApp AI CRM for MENA",
+  "version": "0.8.0",
+  "description": "n8n nodes to connect Zena - WhatsApp AI CRM for MENA",
   "keywords": [
     "n8n-community-node-package",
     "zena",
@@ -10,7 +10,7 @@
     "ai"
   ],
   "license": "MIT",
-  "homepage": "https://zena.chat",
+  "homepage": "https://zena.fictoralabs.ae",
   "author": {
     "name": "Fictoralabs",
     "email": "hello@fictoralabs.com"
@@ -26,6 +26,7 @@
     "dev": "tsc --watch",
     "format": "prettier src --write",
     "lint": "eslint src --ext .ts",
+    "pack:dry-run": "npm pack --dry-run",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -38,7 +39,8 @@
     ],
     "nodes": [
       "dist/nodes/Zena/Zena.node.js",
-      "dist/nodes/ZenaTrigger/ZenaTrigger.node.js"
+      "dist/nodes/ZenaTrigger/ZenaTrigger.node.js",
+      "dist/nodes/ZenaWebhookTrigger/ZenaWebhookTrigger.node.js"
     ]
   },
   "devDependencies": {
@@ -46,10 +48,11 @@
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "eslint": "^10.2.0",
-    "n8n-workflow": "*",
+    "n8n-workflow": "^2.13.1",
+    "prettier": "^3.6.2",
     "typescript": "^5.1.0"
   },
   "peerDependencies": {
-    "n8n-workflow": "*"
+    "n8n-workflow": "^2.13.1"
   }
 }
