@@ -2,6 +2,12 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.1] - 2026-07-08
+
+### Changed
+
+- Updated package author email to `admin@fictoralabs.ae` so n8n Creator Portal verification reaches the active Fictora Labs inbox.
+
 ## [0.8.0] - 2026-07-06
 
 ### Added

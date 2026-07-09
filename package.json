@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zena",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "n8n nodes to connect Zena - WhatsApp AI CRM for MENA",
   "keywords": [
     "n8n-community-node-package",
@@ -13,7 +13,7 @@
   "homepage": "https://zena.fictoralabs.ae",
   "author": {
     "name": "Fictoralabs",
-    "email": "hello@fictoralabs.com"
+    "email": "admin@fictoralabs.ae"
   },
   "repository": {
     "type": "git",
