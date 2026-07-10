@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zena",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "n8n nodes to connect Zena - WhatsApp AI CRM for MENA",
   "keywords": [
     "n8n-community-node-package",
@@ -22,16 +22,19 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && npm run copy-icons",
-    "copy-icons": "for f in src/nodes/*/*.svg; do d=\"dist/${f#src/}\"; mkdir -p \"$(dirname \"$d\")\" && cp \"$f\" \"$d\"; done",
+    "copy-icons": "for f in nodes/*/*.svg; do d=\"dist/$f\"; mkdir -p \"$(dirname \"$d\")\" && cp \"$f\" \"$d\"; done",
     "dev": "tsc --watch",
-    "format": "prettier src --write",
-    "lint": "eslint src --ext .ts",
+    "format": "prettier index.ts credentials nodes shared --write",
+    "lint": "eslint index.ts credentials nodes shared --ext .ts",
     "pack:dry-run": "npm pack --dry-run",
     "prepublishOnly": "npm run build"
   },
   "files": [
     "dist",
-    "src"
+    "credentials",
+    "nodes",
+    "shared",
+    "index.ts"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
