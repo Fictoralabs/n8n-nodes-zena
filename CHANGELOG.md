@@ -2,6 +2,12 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.4] - 2026-07-10
+
+### Fixed
+
+- Moved TypeScript source files to n8n's conventional root layout so Creator Portal can find `credentials/ZenaApi.credentials.ts` in the repository.
+
 ## [0.8.3] - 2026-07-10
 
 ### Fixed
