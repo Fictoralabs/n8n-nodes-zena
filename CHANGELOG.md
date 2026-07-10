@@ -2,6 +2,12 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.3] - 2026-07-10
+
+### Fixed
+
+- Committed compiled `dist` files to the repository so n8n Creator Portal can find the credential file referenced by package metadata.
+
 ## [0.8.2] - 2026-07-10
 
 ### Fixed

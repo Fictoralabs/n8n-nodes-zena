@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" shape-rendering="geometricPrecision">
+  <!-- Background — Zena navy with rounded corners -->
+  <rect width="60" height="60" rx="12" fill="#131B2E"/>
+  <!-- Upper half of the Z: top bar + top half of the diagonal. Lime green — matches the "ze" treatment of the previous wordmark. -->
+  <path d="M10 14 L50 14 L50 22 L34 30 L26 30 L10 22 Z" fill="#B4E130"/>
+  <!-- Lower half of the Z: bottom bar + bottom half of the diagonal. Teal — matches the "na" treatment. -->
+  <path d="M26 30 L34 30 L18 38 L50 38 L50 46 L10 46 L10 38 Z" fill="#3DAB80"/>
+</svg>
