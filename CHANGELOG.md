@@ -2,6 +2,13 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.2] - 2026-07-10
+
+### Fixed
+
+- Updated `peerDependencies.n8n-workflow` to `*` to satisfy the official n8n community package scanner.
+- Included source files in the npm package so n8n Creator Portal can validate the credential file referenced by the compiled package metadata.
+
 ## [0.8.1] - 2026-07-08
 
 ### Changed
