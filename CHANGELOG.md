@@ -2,6 +2,13 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.6] - 2026-07-12
+
+### Changed
+
+- Rebranded node display names: main node is now **Zena AI - Automate WhatsApp**, triggers are **Zena AI Trigger** and **Zena AI Webhook Trigger**.
+- Updated README, package description, and default canvas labels to match. Internal node type IDs (`zena`, `zenaTrigger`, `zenaWebhookTrigger`) and the npm package name are unchanged, so existing workflows continue to function.
+
 ## [0.8.5] - 2026-07-11
 
 ### Added

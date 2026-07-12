@@ -1,8 +1,10 @@
-# n8n-nodes-zena
+# Zena AI - Automate WhatsApp
 
-Official n8n community nodes for **Zena**, the WhatsApp AI CRM by Fictora Labs.
+Official n8n community nodes for **Zena AI**, the WhatsApp AI CRM by Fictora Labs.
 
-Use these nodes to send WhatsApp messages, download inbound media, sync contacts, read leads and conversations, receive Zena webhooks, and automate event-reminder workflows from n8n.
+Automate WhatsApp end-to-end with Zena: send template and free-form messages, download inbound media, sync contacts, read leads and conversations, receive real-time webhooks, and trigger event-reminder workflows — all from n8n.
+
+**npm package:** `n8n-nodes-zena`
 
 ## Nodes Included
 

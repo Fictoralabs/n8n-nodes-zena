@@ -7,14 +7,14 @@ const MAX_SEEN_IDS = 2000;
 class ZenaTrigger {
     constructor() {
         this.description = {
-            displayName: "Zena Trigger",
+            displayName: "Zena AI Trigger",
             name: "zenaTrigger",
             icon: "file:zena.svg",
             group: ["trigger"],
             version: 1,
             subtitle: '={{$parameter["event"]}}',
-            description: "Trigger workflows from Zena events via API polling",
-            defaults: { name: "Zena Trigger" },
+            description: "Trigger workflows from Zena AI WhatsApp events via API polling",
+            defaults: { name: "Zena AI Trigger" },
             inputs: [],
             outputs: ["main"],
             credentials: [{ name: "zenaApi", required: true }],
