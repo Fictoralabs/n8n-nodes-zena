@@ -20,13 +20,13 @@ const EVENTS = [
 class ZenaWebhookTrigger {
     constructor() {
         this.description = {
-            displayName: "Zena Webhook Trigger",
+            displayName: "Zena AI Webhook Trigger",
             name: "zenaWebhookTrigger",
             icon: "file:zena.svg",
             group: ["trigger"],
             version: 1,
-            description: "Trigger workflows from Zena outbound webhook events",
-            defaults: { name: "Zena Webhook Trigger" },
+            description: "Trigger workflows from Zena AI WhatsApp webhook events",
+            defaults: { name: "Zena AI Webhook Trigger" },
             inputs: [],
             outputs: ["main"],
             webhooks: [

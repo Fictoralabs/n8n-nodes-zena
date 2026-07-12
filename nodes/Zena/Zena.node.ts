@@ -29,14 +29,14 @@ type BinaryResponse = {
 
 export class Zena implements INodeType {
   description: INodeTypeDescription = {
-    displayName: "Zena",
+    displayName: "Zena AI - Automate WhatsApp",
     name: "zena",
     icon: "file:zena.svg",
     group: ["transform"],
     version: 1,
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-    description: "Interact with Zena - WhatsApp AI CRM for MENA",
-    defaults: { name: "Zena" },
+    description: "Automate WhatsApp with Zena AI - WhatsApp CRM for MENA",
+    defaults: { name: "Zena AI" },
     inputs: ["main"],
     outputs: ["main"],
     credentials: [{ name: "zenaApi", required: true }],
