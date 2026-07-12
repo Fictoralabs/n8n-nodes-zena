@@ -22,6 +22,11 @@ type ReminderFlag =
   | "reminder_10m_sent"
   | "post_event_sent";
 
+type BinaryResponse = {
+  body: Buffer | string;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
 export class Zena implements INodeType {
   description: INodeTypeDescription = {
     displayName: "Zena",
@@ -48,10 +53,88 @@ export class Zena implements INodeType {
           { name: "Conversation", value: "conversation" },
           { name: "Event", value: "event" },
           { name: "Lead", value: "lead" },
+          { name: "Media", value: "media" },
           { name: "Message", value: "message" },
           { name: "Owner", value: "owner" },
         ],
         default: "contact",
+      },
+
+      {
+        displayName: "Operation",
+        name: "operation",
+        type: "options",
+        noDataExpression: true,
+        displayOptions: { show: { resource: ["media"] } },
+        options: [
+          {
+            name: "Download by Media ID",
+            value: "downloadRaw",
+            description: "Download media by WhatsApp media ID as n8n binary data",
+            action: "Download media by media ID",
+          },
+          {
+            name: "Download by Message ID",
+            value: "download",
+            description: "Download message media as n8n binary data",
+            action: "Download message media",
+          },
+          {
+            name: "Get Metadata by Media ID",
+            value: "metadataRaw",
+            description: "Get metadata for a WhatsApp media ID",
+            action: "Get media metadata by media ID",
+          },
+          {
+            name: "Get Metadata by Message ID",
+            value: "metadata",
+            description: "Get metadata for message media",
+            action: "Get message media metadata",
+          },
+        ],
+        default: "download",
+      },
+      {
+        displayName: "Message ID",
+        name: "mediaMessageId",
+        type: "string",
+        required: true,
+        default: "",
+        description: "Zena message ID containing media",
+        displayOptions: {
+          show: {
+            resource: ["media"],
+            operation: ["download", "metadata"],
+          },
+        },
+      },
+      {
+        displayName: "Media ID",
+        name: "mediaId",
+        type: "string",
+        required: true,
+        default: "",
+        description: "WhatsApp media ID stored on the Zena message",
+        displayOptions: {
+          show: {
+            resource: ["media"],
+            operation: ["downloadRaw", "metadataRaw"],
+          },
+        },
+      },
+      {
+        displayName: "Binary Property",
+        name: "binaryPropertyName",
+        type: "string",
+        required: true,
+        default: "data",
+        description: "Name of the binary property to write the downloaded file to",
+        displayOptions: {
+          show: {
+            resource: ["media"],
+            operation: ["download", "downloadRaw"],
+          },
+        },
       },
 
       {
@@ -829,6 +912,11 @@ export class Zena implements INodeType {
           );
         } else if (resource === "lead") {
           responseData = await handleLead.call(this, i, operation, credentials);
+        } else if (resource === "media") {
+          returnData.push(
+            ...(await handleMedia.call(this, i, operation, credentials)),
+          );
+          continue;
         } else if (resource === "message") {
           responseData = await handleMessage.call(
             this,
@@ -1095,6 +1183,112 @@ async function handleLead(
   }
 
   return undefined;
+}
+
+async function handleMedia(
+  this: IExecuteFunctions,
+  itemIndex: number,
+  operation: string,
+  credentials: ReturnType<typeof credentialsFrom>,
+): Promise<INodeExecutionData[]> {
+  if (operation === "metadata" || operation === "metadataRaw") {
+    const path = mediaPath.call(this, itemIndex, operation, "metadata");
+    return [
+      {
+        json: unwrapOne(
+          await zenaRequest(this, credentials, "GET", path),
+        ),
+        pairedItem: itemIndex,
+      },
+    ];
+  }
+
+  if (operation === "download" || operation === "downloadRaw") {
+    const path = mediaPath.call(this, itemIndex, operation, "download");
+    const binaryPropertyName = this.getNodeParameter(
+      "binaryPropertyName",
+      itemIndex,
+    ) as string;
+    const response = (await this.helpers.request({
+      method: "GET",
+      url: `${credentials.baseUrl}${path}`,
+      headers: { Authorization: `Bearer ${credentials.apiKey}` },
+      encoding: null,
+      resolveWithFullResponse: true,
+      json: false,
+    } as IDataObject)) as BinaryResponse;
+
+    const body = Buffer.isBuffer(response.body)
+      ? response.body
+      : Buffer.from(response.body);
+    const mimeType = getHeader(response.headers, "content-type") ||
+      "application/octet-stream";
+    const fileName = fileNameFromDisposition(
+      getHeader(response.headers, "content-disposition"),
+    ) || "zena-media.bin";
+
+    const binaryData = await this.helpers.prepareBinaryData(
+      body,
+      fileName,
+      mimeType,
+    );
+
+    return [
+      {
+        json: {
+          fileName,
+          mimeType,
+          fileSize: body.length,
+          source: operation === "downloadRaw" ? "media_id" : "message_id",
+        },
+        binary: {
+          [binaryPropertyName]: binaryData,
+        },
+        pairedItem: itemIndex,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function mediaPath(
+  this: IExecuteFunctions,
+  itemIndex: number,
+  operation: string,
+  action: "download" | "metadata",
+): string {
+  if (operation === "download" || operation === "metadata") {
+    const messageId = this.getNodeParameter(
+      "mediaMessageId",
+      itemIndex,
+    ) as string;
+    return `/media/${encodeURIComponent(messageId)}/${action}`;
+  }
+
+  const mediaId = this.getNodeParameter("mediaId", itemIndex) as string;
+  return `/media/raw/${encodeURIComponent(mediaId)}/${action}`;
+}
+
+function getHeader(
+  headers: BinaryResponse["headers"] | undefined,
+  name: string,
+): string | undefined {
+  if (!headers) return undefined;
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== target || value === undefined) continue;
+    return Array.isArray(value) ? value[0] : value;
+  }
+  return undefined;
+}
+
+function fileNameFromDisposition(disposition: string | undefined): string | undefined {
+  if (!disposition) return undefined;
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/"/g, ""));
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1];
 }
 
 async function handleMessage(

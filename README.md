@@ -2,7 +2,7 @@
 
 Official n8n community nodes for **Zena**, the WhatsApp AI CRM by Fictora Labs.
 
-Use these nodes to send WhatsApp messages, sync contacts, read leads and conversations, receive Zena webhooks, and automate event-reminder workflows from n8n.
+Use these nodes to send WhatsApp messages, download inbound media, sync contacts, read leads and conversations, receive Zena webhooks, and automate event-reminder workflows from n8n.
 
 ## Nodes Included
 
@@ -90,6 +90,17 @@ GET /api/v1/me
 | Update Status | `PATCH /leads/:id` | `leads:write` |
 
 Lead list supports `status`, `updated_since`, `limit`, and `offset`.
+
+### Media
+
+| Operation | Endpoint | Scope |
+| --------- | -------- | ----- |
+| Download by Message ID | `GET /media/:messageId/download` | `conversations:read` |
+| Download by Media ID | `GET /media/raw/:mediaId/download` | `conversations:read` |
+| Get Metadata by Message ID | `GET /media/:messageId/metadata` | `conversations:read` |
+| Get Metadata by Media ID | `GET /media/raw/:mediaId/metadata` | `conversations:read` |
+
+Download operations return n8n binary data, so media from WhatsApp conversations can be passed directly to storage, OCR, AI, email, or document-processing nodes.
 
 ### Messages
 
