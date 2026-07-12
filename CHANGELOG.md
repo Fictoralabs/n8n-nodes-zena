@@ -2,6 +2,14 @@
 
 All notable changes to `n8n-nodes-zena` are documented here.
 
+## [0.8.5] - 2026-07-11
+
+### Added
+
+- Added Media operations for downloading WhatsApp media by Zena message ID or raw WhatsApp media ID.
+- Added Media metadata operations for inspecting MIME type, size, hash, and suggested filename before downloading.
+- Downloaded media is returned as n8n binary data for direct use with storage, OCR, AI, email, and document-processing nodes.
+
 ## [0.8.4] - 2026-07-10
 
 ### Fixed
